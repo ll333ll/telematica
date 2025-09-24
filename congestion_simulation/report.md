@@ -8,15 +8,47 @@ Este documento presenta los resultados y el análisis de la simulación de algor
 
 Se implementó una simulación en Python para modelar un escenario de red donde múltiples clientes compiten por el ancho de banda de un único enlace compartido. El objetivo es observar cómo diferentes algoritmos de control de congestión (Reno, CUBIC, BBR y un algoritmo personalizado) gestionan su ventana de envío (`cwnd`) para maximizar el `throughput` y mantener la equidad.
 
-**Parámetros Clave de la Simulación:**
+**Parámetros Clave de la Simulación (conforme a la guía):**
 *   **Tiempo de Simulación:** 100 segundos.
-*   **Capacidad del Enlace:** 100 paquetes/segundo.
-*   **Tamaño del Búfer del Enlace:** 30 paquetes.
-*   **Número de Clientes:** 12 en total (3 de Reno, 3 de CUBIC, 3 de BBR y 3 de Custom).
+*   **Capacidad del Enlace (pps):** 10 y 100.
+*   **Tamaño del Búfer del Enlace:** 10 y 30 paquetes.
+*   **Número de Clientes:** 9 para el comparativo (3 Reno, 3 CUBIC, 3 BBR).
+*   **Algoritmo Propuesto (TCPCustom):** se compara en un escenario elegido (parte 3).
+
+### Definiciones formales
+
+- Throughput (por cliente i y paso t): x_i(t) = paquetes servidos en t. Throughput promedio del cliente i: X_i = (1/T) · ∑_{t=1..T} x_i(t).
+- RTT (Round-Trip Time): tiempo ida y vuelta. En esta simulación se modela como RTT(t) = RTT_base + α · OcupaciónCola(t), con OcupaciónCola(t) = len(buffer)/BUFFER_SIZE y α ≈ 50 ms.
+- Índice de Jain (fairness) en t: J(t) = ( (∑_i x_i(t))^2 ) / ( n · ∑_i x_i(t)^2 ). Interpretación: J ∈ (0,1]; 1 implica reparto perfectamente equitativo; valores menores indican inequidad entre flujos.
+- Descartes por algoritmo: suma de paquetes rechazados por overflow del búfer por cada algoritmo. Cuantos más descartes, mayor agresividad (o presión conjunta) bajo el mismo escenario.
 
 ---
 
-## 2. Propuesta de Optimización: Algoritmo `TCPCustom`
+## 2. Cambios y cumplimiento vs. directrices
+
+Los siguientes ajustes se realizaron para cumplir exactamente con la actividad:
+
+- Cola con tamaño real y descartes por overflow: ahora el búfer respeta `BUFFER_SIZE`; los paquetes que llegan cuando la cola está llena se descartan y disparan evento de pérdida (no se vacía la cola al final del paso de tiempo).
+- RTT en función de ocupación de cola: el RTT simulado crece con `len(buffer)/BUFFER_SIZE` (bufferbloat), no con paquetes procesados.
+- Parámetros por CLI y escenarios: `simulation.py` acepta `--capacity`, `--buffer`, `--sim-time` y la opción `--all-scenarios` para generar los cuatro escenarios requeridos (10/100 pps × 10/30 buffer).
+- Comparativo 9 clientes: para el análisis base se usan 3 Reno, 3 CUBIC y 3 BBR; TCPCustom se usa en la parte 3 sobre un escenario elegido.
+
+Ejecución (ejemplos):
+
+```
+# Escenario único (100 pps, buffer 30)
+python3 simulation.py --capacity 100 --buffer 30 --reno 3 --cubic 3 --bbr 3 --custom 0
+
+# Cuatro escenarios (generará 4 PNG con sufijo cap/buf)
+python3 simulation.py --all-scenarios --sim-time 100 --reno 3 --cubic 3 --bbr 3 --custom 0
+
+# Comparación con TCPCustom en un escenario (p. ej., 100/30)
+python3 simulation.py --capacity 100 --buffer 30 --reno 3 --cubic 3 --bbr 3 --custom 3
+```
+
+Los gráficos se guardan con nombre `congestion_simulation_results_with_custom_cap<cap>_buf<buf>.png`.
+
+## 3. Propuesta de Optimización: Algoritmo `TCPCustom`
 
 Se diseñó e implementó un algoritmo personalizado llamado `TCPCustom`, basado en una modificación de TCP Reno. La estrategia se puede denominar **"Reno Cauteloso" (Cautious Reno)**.
 
@@ -34,15 +66,19 @@ El objetivo de esta estrategia es ceder ancho de banda más rápidamente cuando 
 
 ---
 
-## 3. Gráficos de Resultados
+## 4. Gráficos de Resultados
 
 A continuación se muestran los gráficos generados por la simulación, que comparan el rendimiento de los cuatro algoritmos.
 
-![Resultados de la Simulación](congestion_simulation_results_with_custom.png "Gráficos de Throughput, RTT y CWND")
+Para cada escenario se generan:
+
+- Panel con 3 gráficos: Throughput por cliente, RTT por cliente y cwnd por cliente (archivo `congestion_simulation_results_with_custom_cap<cap>_buf<buf>.png`).
+- Fairness de Jain a lo largo del tiempo (archivo `fairness_jain_cap<cap>_buf<buf>.png`). El índice J(t) = (∑xᵢ)²/(n·∑xᵢ²) mide la equidad entre flujos (1 = perfectamente justo, 1/n = muy injusto).
+- Barras de paquetes descartados por algoritmo (archivo `drops_by_algorithm_cap<cap>_buf<buf>.png`). Cuantos más descartes, mayor agresividad o mayor presión sobre el búfer.
 
 ---
 
-## 4. Análisis Detallado de los Resultados
+## 5. Análisis Detallado de los Resultados
 
 Observando los gráficos, podemos extraer las siguientes conclusiones:
 
@@ -62,6 +98,14 @@ El RTT simulado aumenta a medida que el búfer del enlace se llena. Un RTT más 
 
 ### c. Análisis de la Ventana de Congestión (cwnd) (Gráfico 3)
 
+### d. Fairness de Jain (Gráfico 4)
+
+Un J(t) cercano a 1 indica reparto equitativo del enlace entre los 9 flujos. En escenarios con búfer pequeño o alta capacidad, observar si CUBIC/BBR empujan a Reno, reduciendo J(t).
+
+### e. Descartes por Algoritmo (Gráfico 5)
+
+Este gráfico agrega los paquetes descartados por overflow del búfer, por algoritmo. Un mayor conteo sugiere comportamiento más agresivo (o mayor presión conjunta) bajo el mismo escenario.
+
 Este gráfico es el más revelador del comportamiento de cada algoritmo.
 
 *   **Reno (rojo):** Muestra el patrón de dientes de sierra perfecto de crecimiento lineal y reducción a la mitad.
@@ -69,6 +113,8 @@ Este gráfico es el más revelador del comportamiento de cada algoritmo.
 *   **BBR (azul):** Muestra un comportamiento de crecimiento más suave y menos errático. No reacciona a la pérdida de paquetes de forma tan drástica, sino que ajusta su ventana de forma más gradual, lo que resulta en un `throughput` más estable.
 *   **TCPCustom (magenta):** Su `cwnd` sigue de cerca a la de Reno. Sin embargo, la lógica modificada de reducción podría (en escenarios más largos o con diferentes parámetros) llevar a un comportamiento ligeramente más estable que Reno, aunque en esta simulación su rendimiento es muy parecido. La idea de reaccionar de forma diferente según el RTT es válida, pero en este entorno simulado con RTTs bastante estables, la diferencia no es pronunciada.
 
-## 5. Conclusión
+## 6. Conclusión
+
+La simulación quedó alineada con la guía: cola con tamaño finito (con descartes), dos capacidades y dos tamaños de búfer, 9 clientes para el comparativo base y una propuesta de optimización. Las figuras se generan por escenario y pueden incorporarse al PDF final del informe.
 
 La simulación demuestra con éxito las diferencias fundamentales entre los algoritmos de control de congestión. Algoritmos más modernos como CUBIC y BBR están diseñados para ser más agresivos y eficientes en redes de alta velocidad, mientras que Reno es más simple y conservador. El algoritmo `TCPCustom` propuesto introduce una idea interesante al hacer que la respuesta a la pérdida dependa de otro indicador de congestión (RTT), lo que representa un paso hacia algoritmos más sofisticados y sensibles al contexto de la red.

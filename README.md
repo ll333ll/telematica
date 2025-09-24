@@ -2,17 +2,17 @@
 
 Este repositorio contiene:
 
-- Proyectos de prácticas de red: `sockets/` y `http/` (ver `Actividades.md`).
-- Actividades de la entrega 1: `telemetria_robot/` (ver `Entrega1_Explicacion.md`).
-- Extra de Machine Learning para Detección de Intrusiones: `CiberTelepatia/`.
+- Entrega 1 — Telemetría: `Proyectos/Entrega1_Telemetria/` (ver `Entrega1_Explicacion.md` y `telemetria_robot/`).
+- Actividad Opcional — Sockets + HTTP + DNS/Docker: `Proyectos/ActividadOpcional_Web_DNS/`.
+- Extra de Machine Learning (IDS): `CiberTelepatia/`.
 
 ## Actualizar subrepositorios Git
 
-Los proyectos `http/` y `sockets/` son repositorios Git independientes con remoto configurado. Ya quedaron sincronizados con `origin/main`. Para actualizar en el futuro:
+Los proyectos `http/` y `sockets/` dentro de `Proyectos/ActividadOpcional_Web_DNS/` son repos Git independientes con remoto configurado. Para actualizar:
 
 ```
-git -C http pull --ff-only
-git -C sockets pull --ff-only
+git -C Proyectos/ActividadOpcional_Web_DNS/http pull --ff-only
+git -C Proyectos/ActividadOpcional_Web_DNS/sockets pull --ff-only
 ```
 
 ## Actividad opcional — Ejecución base
@@ -20,12 +20,12 @@ git -C sockets pull --ff-only
 La guía de ejecución paso a paso y justificación técnica está en `Actividades.md`. Resumen:
 
 - `sockets/`: ejemplos de cliente/servidor, simulación DNS para `PlugAndAd.com`.
-- `http/`: backend Flask + frontend estático.
+- `http/`: backend Flask + frontend estático (Docker opcional con Nginx + Gunicorn).
 
 Pasos típicos (consulta `Actividades.md` para detalles y contexto):
 
-- Backend: `cd http/backend && source venv/bin/activate && python3 back.py`
-- Frontend (estático): `cd http/frontend && python3 -m http.server 8000`
+- Backend: `cd Proyectos/ActividadOpcional_Web_DNS/http/backend && python3 back.py`
+- Frontend (estático): `cd Proyectos/ActividadOpcional_Web_DNS/http/frontend && python3 -m http.server 8000`
 - Acceso: `http://localhost:8000`
 
 ## Extra (Machine Learning): CiberTelepatia

@@ -59,3 +59,33 @@ Algunos modelos (p. ej. SVC con kernel RBF) pueden ser lentos en todo el dataset
 ## Licencias y uso
 
 El dataset NSL-KDD es de dominio público para investigación académica. Revisa las licencias de las librerías usadas conforme a tus políticas institucionales.
+
+## Reproducibilidad
+
+- Semillas globales fijadas: `numpy.random.seed(42)` y `random.seed(42)` para resultados replicables.
+- Algunas bibliotecas externas reciben semillas adicionales donde aplica.
+
+## Preprocesamiento
+
+- Se usa `StandardScaler(with_mean=False)` para compatibilidad con datos dispersos tras one-hot encoding y evitar densificación costosa.
+
+## Diagrama de Flujo del Pipeline
+
+```mermaid
+flowchart LR
+  A[Cargar NSL-KDD] --> B[Preprocesar: one-hot, escalar]
+  B --> C[Modelos clásicos]
+  B --> D[Ensambles]
+  C --> E[Reportes + Matrices]
+  D --> E
+  E --> F[Resumen CSV/MD]
+  F --> G[Persistir mejor modelo]
+```
+
+## Salidas
+
+- `outputs/metrics/*`: Reportes de clasificación por modelo (txt).
+- `outputs/confusion_matrices/*`: Matrices de confusión (CSV).
+- `outputs/plots/*`: Heatmaps de matrices, curvas ROC/PR.
+- `outputs/results_summary.csv` y `results_summary.md`.
+- `outputs/best_model.joblib`: Mejor modelo persistido (cuando aplica).

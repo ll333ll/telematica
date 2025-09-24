@@ -95,3 +95,38 @@ Este cliente muestra cómo integrar el protocolo de red en una aplicación de es
 1.  **Compilar el Servidor (`make`):** Se traduce el código C a un ejecutable que la máquina pueda entender, incluyendo las librerías necesarias.
 2.  **Ejecutar el Servidor (`./server 8080 logs.txt`):** Se inicia el programa, que se vincula al puerto 8080 y se prepara para aceptar clientes.
 3.  **Ejecutar un Cliente (`python3 client_cli.py 127.0.0.1 8080`):** Se inicia el programa cliente, que establece una conexión TCP con el servidor en la IP y puerto especificados, listo para enviar y recibir datos según el protocolo definido.
+
+---
+
+## Diagramas
+
+### Secuencia Cliente-Servidor
+
+```mermaid
+sequenceDiagram
+  participant C as Cliente
+  participant S as Servidor
+  C->>S: TCP connect
+  C->>S: LOGIN USER | ADMIN
+  S-->>C: LOGIN_SUCCESS / LOGIN_FAIL
+  loop cada 15s
+    S-->>C: DATA timestamp VAR=VAL;...
+  end
+  C->>S: MOVE DIR
+  S-->>C: MOVE_SUCCESS/MOVE_FAIL
+  C->>S: LOGOUT
+  S-->>C: close
+```
+
+### Estados de Sesión
+
+```mermaid
+stateDiagram-v2
+  [*] --> CONNECTED
+  CONNECTED --> LOGGED_IN_USER: LOGIN USER
+  CONNECTED --> LOGGED_IN_ADMIN: LOGIN ADMIN (ok)
+  LOGGED_IN_ADMIN --> CONNECTED: LOGOUT
+  LOGGED_IN_USER --> CONNECTED: LOGOUT
+  LOGGED_IN_USER --> LOGGED_IN_USER: PING/GET_DATA
+  LOGGED_IN_ADMIN --> LOGGED_IN_ADMIN: MOVE/LIST_USERS/PING/GET_DATA
+```

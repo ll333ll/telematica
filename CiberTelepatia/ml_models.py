@@ -1,3 +1,9 @@
+"""
+Nota: Módulo experimental usado en versiones previas del proyecto.
+Se corrigieron pequeños detalles (LinearRegression no soporta n_jobs),
+pero la canalización principal recomendada está en run_ids_ml.py.
+"""
+
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split, GridSearchCV
@@ -135,7 +141,7 @@ def train_and_evaluate_classification(X_train, y_train, X_test, y_test):
 def train_and_evaluate_regression(X_train, y_train, X_test, y_test):
     print("\n--- Predicción de Importancia de Llegada (Regresión) ---")
     models = {
-        'Linear Regression': LinearRegression(n_jobs=-1),
+        'Linear Regression': LinearRegression(),
         'Random Forest Regressor': RandomForestRegressor(random_state=42, n_jobs=-1)
     }
 

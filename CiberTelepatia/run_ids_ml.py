@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import numpy as np
+import random
 from pathlib import Path
 from typing import Tuple, Dict
 import argparse
@@ -12,7 +13,7 @@ from sklearn.metrics import (
 )
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold, RandomizedSearchCV
 from sklearn.impute import SimpleImputer
 from sklearn.utils import Bunch
 
@@ -114,9 +115,11 @@ def _slug(name: str) -> str:
     return name.lower().replace(' ', '_').replace('(', '').replace(')', '').replace('/', '_')
 
 
-def _save_per_model_outputs(outdir: Path, name: str, y_true, y_pred):
-    """Guarda reporte de clasificación y matriz de confusión (CSV) por modelo."""
-    from sklearn.metrics import classification_report, confusion_matrix
+def _save_per_model_outputs(outdir: Path, name: str, y_true, y_pred, y_score=None):
+    """Guarda reporte de clasificación, matriz de confusión (CSV) y heatmap/curvas."""
+    from sklearn.metrics import classification_report, confusion_matrix, RocCurveDisplay, PrecisionRecallDisplay
+    import matplotlib.pyplot as plt
+    import seaborn as sns
     slug = _slug(name)
     rep = classification_report(y_true, y_pred, target_names=['Normal', 'Ataque'])
     (outdir / 'metrics' / f'{slug}_classification_report.txt').write_text(rep, encoding='utf-8')
@@ -124,6 +127,22 @@ def _save_per_model_outputs(outdir: Path, name: str, y_true, y_pred):
     # Guardar matriz en CSV sencillo
     pd.DataFrame(cm, index=['Real_Normal','Real_Ataque'], columns=['Pred_Normal','Pred_Ataque']) \
         .to_csv(outdir / 'confusion_matrices' / f'{slug}_cm.csv')
+    # Heatmap
+    plt.figure(figsize=(4,3))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', cbar=False,
+                xticklabels=['Pred_Normal','Pred_Ataque'], yticklabels=['Real_Normal','Real_Ataque'])
+    plt.tight_layout()
+    plt.savefig(outdir / 'plots' / f'{slug}_cm_heatmap.png')
+    plt.close()
+    # Curvas ROC/PR si hay score
+    if y_score is not None:
+        try:
+            RocCurveDisplay.from_predictions(y_true, y_score)
+            plt.tight_layout(); plt.savefig(outdir / 'plots' / f'{slug}_roc.png'); plt.close()
+            PrecisionRecallDisplay.from_predictions(y_true, y_score)
+            plt.tight_layout(); plt.savefig(outdir / 'plots' / f'{slug}_pr.png'); plt.close()
+        except Exception:
+            pass
 
 
 def evaluate_models(X_train, y_train, X_test, y_test) -> pd.DataFrame:
@@ -134,11 +153,11 @@ def evaluate_models(X_train, y_train, X_test, y_test) -> pd.DataFrame:
 
     # Modelos base (sin SVC RBF por costo computacional)
     models: Dict[str, object] = {
-        'LogReg': LogisticRegression(max_iter=1000, solver='saga', n_jobs=-1, random_state=42),
+        'LogReg': LogisticRegression(max_iter=1000, solver='saga', n_jobs=-1, random_state=42, class_weight='balanced'),
         'LinearSVC': LinearSVC(random_state=42),
-        'DecisionTree': DecisionTreeClassifier(random_state=42),
-        'RandomForest': RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1),
-        'ExtraTrees': ExtraTreesClassifier(n_estimators=300, random_state=42, n_jobs=-1),
+        'DecisionTree': DecisionTreeClassifier(random_state=42, class_weight='balanced'),
+        'RandomForest': RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1, class_weight='balanced'),
+        'ExtraTrees': ExtraTreesClassifier(n_estimators=300, random_state=42, n_jobs=-1, class_weight='balanced'),
         'GradientBoosting': GradientBoostingClassifier(random_state=42),
         'AdaBoost': AdaBoostClassifier(random_state=42),
         'GaussianNB': GaussianNB(),
@@ -172,7 +191,7 @@ def evaluate_models(X_train, y_train, X_test, y_test) -> pd.DataFrame:
         except Exception:
             roc = np.nan
 
-        _save_per_model_outputs(ensure_outputs_dir(), name, y_test, y_pred)
+        _save_per_model_outputs(ensure_outputs_dir(), name, y_test, y_pred, y_score)
         print(f"  Acc={acc:.4f} Prec={prec:.4f} Rec={rec:.4f} F1={f1:.4f} ROC-AUC={roc if not np.isnan(roc) else float('nan'):.4f}")
         results.append({'model': name, 'accuracy': acc, 'precision': prec, 'recall': rec, 'f1': f1, 'roc_auc': roc})
 
@@ -225,6 +244,43 @@ def evaluate_ensembles(X_train, y_train, X_test, y_test) -> pd.DataFrame:
     return pd.DataFrame(results).sort_values(by=['f1', 'accuracy'], ascending=False)
 
 
+def tune_top_models(results_df: pd.DataFrame, X_train, y_train, X_test, y_test) -> pd.DataFrame:
+    """Hace RandomizedSearchCV sobre los 3 mejores modelos por F1."""
+    top = results_df.head(3)['model'].tolist()
+    tuned = []
+    cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+    for name in top:
+        if name == 'RandomForest':
+            base = RandomForestClassifier(random_state=42, n_jobs=-1, class_weight='balanced')
+            params = {
+                'n_estimators': [100, 200, 300],
+                'max_depth': [None, 10, 20],
+                'min_samples_split': [2, 5, 10]
+            }
+        elif name == 'LogReg':
+            base = LogisticRegression(max_iter=2000, solver='saga', n_jobs=-1, class_weight='balanced', random_state=42)
+            params = {
+                'C': np.logspace(-3, 1, 10)
+            }
+        elif name == 'ExtraTrees':
+            base = ExtraTreesClassifier(random_state=42, n_jobs=-1, class_weight='balanced')
+            params = {
+                'n_estimators': [200, 300, 500],
+                'max_depth': [None, 10, 20]
+            }
+        else:
+            continue
+        print(f"Tuning {name}…")
+        rs = RandomizedSearchCV(base, params, n_iter=8, scoring='f1', cv=cv, random_state=42, n_jobs=-1, verbose=0)
+        rs.fit(X_train, y_train)
+        best = rs.best_estimator_
+        y_pred = best.predict(X_test)
+        acc = accuracy_score(y_test, y_pred)
+        prec, rec, f1, _ = precision_recall_fscore_support(y_test, y_pred, average='binary', zero_division=0)
+        tuned.append({'model': f'{name}(tuned)', 'accuracy': acc, 'precision': prec, 'recall': rec, 'f1': f1, 'roc_auc': np.nan})
+    return pd.DataFrame(tuned)
+
+
 def main():
     parser = argparse.ArgumentParser(description='IDS ML pipeline (NSL-KDD)')
     parser.add_argument('--phase', choices=['all', 'base', 'ensembles'], default='all',
@@ -232,6 +288,9 @@ def main():
     args = parser.parse_args()
 
     outdir = ensure_outputs_dir()
+    # Semillas globales
+    np.random.seed(42)
+    random.seed(42)
     print("Cargando datos…")
     train_df, test_df = load_data()
 
@@ -254,6 +313,35 @@ def main():
         print("\nResultados ordenados por F1 y Accuracy:\n", results)
         results.to_csv(outdir / 'results_summary.csv', index=False)
         print(f"\nResumen guardado en: {outdir / 'results_summary.csv'}")
+
+        # Tuning top-3
+        tuned = tune_top_models(results, data.X_train, data.y_train, data.X_test, data.y_test)
+        if not tuned.empty:
+            tuned.to_csv(outdir / 'results_tuned.csv', index=False)
+            results = pd.concat([results, tuned], ignore_index=True).sort_values(by=['f1', 'accuracy'], ascending=False)
+
+        # Guardar resumen MD y mejor modelo
+        top5 = results.head(5)
+        md_lines = ["# Resumen de Resultados (Top-5)", "", "| Modelo | F1 | Accuracy |", "|---|---:|---:|"]
+        for _, row in top5.iterrows():
+            md_lines.append(f"| {row['model']} | {row['f1']:.4f} | {row['accuracy']:.4f} |")
+        (outdir / 'results_summary.md').write_text("\n".join(md_lines), encoding='utf-8')
+
+        # Persistir mejor modelo si es uno de los que tenemos instancia
+        best_name = results.iloc[0]['model']
+        best = None
+        # entrenar de nuevo best para persistir con todos los datos de train
+        if best_name.startswith('RandomForest'):
+            best = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1, class_weight='balanced')
+        elif best_name.startswith('LogReg'):
+            best = LogisticRegression(max_iter=2000, solver='saga', n_jobs=-1, class_weight='balanced', random_state=42)
+        elif best_name.startswith('ExtraTrees'):
+            best = ExtraTreesClassifier(n_estimators=300, random_state=42, n_jobs=-1, class_weight='balanced')
+        if best is not None:
+            import joblib
+            best.fit(data.X_train, data.y_train)
+            joblib.dump(best, outdir / 'best_model.joblib')
+            print(f"Mejor modelo persistido en {outdir / 'best_model.joblib'}")
 
 
 if __name__ == '__main__':

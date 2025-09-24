@@ -2,6 +2,8 @@ import socket
 import threading
 import tkinter as tk
 from tkinter import scrolledtext, messagebox
+from tkinter import ttk
+import queue
 
 class ClientGUI(tk.Tk):
     def __init__(self):
@@ -10,8 +12,10 @@ class ClientGUI(tk.Tk):
         self.geometry("600x700")
         self.sock = None
         self.is_admin = False
+        self.msg_q = queue.Queue()
 
         self.create_widgets()
+        self.after(50, self.pump_queue)
 
     def create_widgets(self):
         # Frame de conexión
@@ -44,6 +48,21 @@ class ClientGUI(tk.Tk):
         # Área de texto para mensajes
         self.log_area = scrolledtext.ScrolledText(self, state=tk.DISABLED)
         self.log_area.pack(padx=10, pady=10, expand=True, fill=tk.BOTH)
+        self.log_area.tag_config('DATA', foreground='#1f7a1f')
+        self.log_area.tag_config('ERROR', foreground='#b30000')
+        self.log_area.tag_config('MOVE', foreground='#0044cc')
+
+        # Mini-gráfica de telemetría (barras de progreso)
+        telem = tk.Frame(self, pady=5)
+        telem.pack(fill=tk.X)
+        tk.Label(telem, text="Temp (°C)").pack(side=tk.LEFT, padx=5)
+        self.temp_var = tk.DoubleVar(value=0.0)
+        self.temp_bar = ttk.Progressbar(telem, orient='horizontal', length=200, mode='determinate', maximum=50, variable=self.temp_var)
+        self.temp_bar.pack(side=tk.LEFT, padx=5)
+        tk.Label(telem, text="Hum (%)").pack(side=tk.LEFT, padx=10)
+        self.hum_var = tk.DoubleVar(value=0.0)
+        self.hum_bar = ttk.Progressbar(telem, orient='horizontal', length=200, mode='determinate', maximum=100, variable=self.hum_var)
+        self.hum_bar.pack(side=tk.LEFT, padx=5)
 
         # Frame de comandos de Admin
         self.admin_frame = tk.Frame(self, pady=5)
@@ -67,17 +86,31 @@ class ClientGUI(tk.Tk):
 
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
+        # Barra de estado
+        status = tk.Frame(self)
+        status.pack(fill=tk.X, side=tk.BOTTOM)
+        self.status_var = tk.StringVar(value="Desconectado")
+        self.status_lbl = tk.Label(status, textvariable=self.status_var, anchor='w')
+        self.status_lbl.pack(side=tk.LEFT, padx=8)
+
+        # Atajos WASD para MOVE
+        self.bind('<w>', lambda e: self.send_move('UP'))
+        self.bind('<a>', lambda e: self.send_move('LEFT'))
+        self.bind('<s>', lambda e: self.send_move('DOWN'))
+        self.bind('<d>', lambda e: self.send_move('RIGHT'))
+
     def connect_server(self):
         host = self.host_entry.get()
         port = int(self.port_entry.get())
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             self.sock.connect((host, port))
-            self.log("Conectado al servidor.")
+            self.enqueue_log("Conectado al servidor.")
             self.connect_button.config(state=tk.DISABLED)
             self.login_button.config(state=tk.NORMAL)
             self.send_button.config(state=tk.NORMAL)
             self.logout_button.config(state=tk.NORMAL)
+            self.status_var.set("Conectado (sin autenticar)")
             threading.Thread(target=self.receive_messages, daemon=True).start()
         except Exception as e:
             messagebox.showerror("Error de Conexión", str(e))
@@ -88,14 +121,17 @@ class ClientGUI(tk.Tk):
             try:
                 message = self.sock.recv(1024).decode('utf-8').strip()
                 if message:
-                    self.log(f"[Servidor] {message}")
+                    self.enqueue_log(f"[Servidor] {message}")
                     if "LOGIN_SUCCESS ADMIN" in message:
                         self.is_admin = True
                         self.toggle_admin_controls(True)
+                        self.status_var.set("Conectado (ADMIN)")
+                    elif "LOGIN_SUCCESS USER" in message:
+                        self.status_var.set("Conectado (USER)")
                 else:
                     break
             except:
-                self.log("Se perdió la conexión con el servidor.")
+                self.enqueue_log("Se perdió la conexión con el servidor.")
                 self.reset_ui()
                 break
 
@@ -109,7 +145,10 @@ class ClientGUI(tk.Tk):
             try:
                 self.sock.sendall(f"{command}\n".encode('utf-8'))
             except:
-                self.log("Error al enviar comando.")
+                self.enqueue_log("Error al enviar comando.")
+
+    def send_move(self, direction: str):
+        self.send_command(f"MOVE {direction}")
 
     def send_custom_command(self):
         command = self.cmd_entry.get()
@@ -126,11 +165,50 @@ class ClientGUI(tk.Tk):
             self.sock.close()
         self.destroy()
 
-    def log(self, message):
-        self.log_area.config(state=tk.NORMAL)
-        self.log_area.insert(tk.END, message + "\n")
-        self.log_area.config(state=tk.DISABLED)
-        self.log_area.see(tk.END)
+    def enqueue_log(self, message: str):
+        self.msg_q.put(message)
+
+    def pump_queue(self):
+        try:
+            while True:
+                msg = self.msg_q.get_nowait()
+                tag = None
+                if 'ERROR' in msg:
+                    tag = 'ERROR'
+                elif 'MOVE_' in msg or 'MOVE ' in msg:
+                    tag = 'MOVE'
+                elif 'DATA ' in msg:
+                    tag = 'DATA'
+
+                self.log_area.config(state=tk.NORMAL)
+                if tag:
+                    self.log_area.insert(tk.END, msg + "\n", tag)
+                else:
+                    self.log_area.insert(tk.END, msg + "\n")
+                self.log_area.config(state=tk.DISABLED)
+                self.log_area.see(tk.END)
+
+                # Actualizar barras si viene DATA
+                if tag == 'DATA':
+                    # Msg ejemplo: [Servidor] DATA 1690000000 TEMP=23.5;HUM=60.2
+                    try:
+                        parts = msg.split('DATA', 1)[1].strip()
+                        # parts: "169.. TEMP=..;HUM=.."
+                        kvs = parts.split()
+                        if len(kvs) >= 2:
+                            data = kvs[1]
+                            for kv in data.split(';'):
+                                if kv.startswith('TEMP='):
+                                    tval = float(kv.split('=')[1])
+                                    self.temp_var.set(max(0.0, min(50.0, tval)))
+                                if kv.startswith('HUM='):
+                                    hval = float(kv.split('=')[1])
+                                    self.hum_var.set(max(0.0, min(100.0, hval)))
+                    except Exception:
+                        pass
+        except queue.Empty:
+            pass
+        self.after(50, self.pump_queue)
 
     def toggle_admin_controls(self, is_admin):
         for child in self.admin_frame.winfo_children():
@@ -143,6 +221,7 @@ class ClientGUI(tk.Tk):
         self.logout_button.config(state=tk.DISABLED)
         self.toggle_admin_controls(False)
         self.is_admin = False
+        self.status_var.set("Desconectado")
 
 if __name__ == "__main__":
     app = ClientGUI()

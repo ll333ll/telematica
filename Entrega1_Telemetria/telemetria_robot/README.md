@@ -54,3 +54,9 @@ Este protocolo define la comunicación entre un servidor (el robot de telemetrí
 10. **Cliente (ADMIN):** `LIST_USERS\n`
 11. **Servidor:** `USER_LIST 192.168.1.10:54321;192.168.1.12:12345\n`
 12. **Cliente (USER):** `LOGOUT\n`
+
+## 5. Seguridad y Configuración
+
+- La contraseña de ADMIN se toma de `ADMIN_PASSWORD` (variable de entorno) o del archivo `.env` con línea `ADMIN_PASSWORD=...`. Si no se define, por defecto es `admin`.
+- El servidor ignora `SIGPIPE` y usa escritura robusta para evitar truncamientos (helper `send_all`).
+- Rate limit simple por cliente: PING/GET_DATA se aceptan como máximo 1 vez por segundo.
