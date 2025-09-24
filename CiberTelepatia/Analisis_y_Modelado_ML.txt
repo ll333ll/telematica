@@ -1,7 +1,6 @@
 DOCUMENTO PEDAGÓGICO: Detección de Intrusiones con Machine Learning (NSL-KDD)
 
-Objetivo (en lenguaje claro)
-- Construir un “detector de intrusos” que mire conexiones de red y decida si parecen normales o un ataque.
+Objetivo (en lenguaje claro)ir un “detector de intrusos” que mire conexiones de red y decida si parecen normales o un ataque.
 - Usamos datos históricos (dataset NSL-KDD) para que el computador aprenda patrones.
 - Mostramos todo con gráficos interactivos (Plotly) y explicaciones paso a paso.
 
