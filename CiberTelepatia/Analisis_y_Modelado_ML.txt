@@ -1,0 +1,77 @@
+DOCUMENTO PEDAGÓGICO: Detección de Intrusiones con Machine Learning (NSL-KDD)
+
+Objetivo (en lenguaje claro)
+- Construir un “detector de intrusos” que mire conexiones de red y decida si parecen normales o un ataque.
+- Usamos datos históricos (dataset NSL-KDD) para que el computador aprenda patrones.
+- Mostramos todo con gráficos interactivos (Plotly) y explicaciones paso a paso.
+
+1) ¿Qué es un dataset y qué contiene NSL-KDD?
+- Un “dataset” es una tabla con ejemplos del pasado. Cada fila es una conexión de red y cada columna es una característica (duración, bytes enviados, protocolo, etc.).
+- También trae una etiqueta: normal o un tipo de ataque. Nosotros simplificamos a “normal (0)” o “ataque (1)”.
+
+2) Flujo general de trabajo
+- Cargar datos: descargamos dos archivos públicos: uno para entrenar (aprender) y otro para probar (evaluar si aprendió bien).
+- Preprocesar: dejamos listas las columnas (codificamos texto a números, alineamos columnas de train/test y escalamos valores numéricos para ayudar a los modelos).
+- Explorar con gráficos: ver cuántos ataques hay, qué variables son más informativas, cómo se relacionan.
+- Entrenar modelos: probamos 10+ algoritmos clásicos (árboles, bosques, regresión logística, SVM, etc.).
+- Ensamblar modelos: combinamos varios para mejorar la robustez (Voting, Stacking, Bagging).
+- Evaluar: medimos qué tan bien acierta (accuracy), qué tanto detecta ataques (recall), qué tan precisos son (precision) y un equilibrio entre ambos (F1). También curvas ROC/PR cuando aplica.
+
+3) Preprocesamiento explicado “sin jerga”
+- Categóricas a números: hay columnas como “protocolo” (tcp/udp/icmp). Las convertimos a columnas 0/1 (one-hot). Ejemplo: “protocol_type_tcp” = 1 si es TCP, 0 si no.
+- Alinear columnas: el archivo de prueba puede no tener alguna categoría que sí había en entrenamiento. Añadimos la columna faltante con 0 para que ambos tengan la misma “forma”.
+- Escalar: que todas las columnas numéricas queden con escalas comparables. Esto ayuda a algoritmos como la Regresión Logística y SVM a converger mejor.
+
+4) ¿Por qué tantos modelos?
+- No existe un único “mejor modelo” universal. Cada algoritmo ve el mundo de forma distinta. Probar varios nos da confianza y opciones. Luego elegimos el mejor por métrica (p. ej. F1 para balance entre precisión y cobertura de ataques).
+
+5) Ensambles (votar, apilar, embolsar)
+- Voting: varios modelos “votan” la clase final (como un jurado). Si dos dicen “ataque” y uno “normal”, gana “ataque”.
+- Stacking: usamos las predicciones de varios modelos como “insumos” para un modelo final que decide (meta-modelo).
+- Bagging: entrenamos muchos modelos del mismo tipo sobre diferentes “subconjuntos” y promediamos. Esto reduce el azar y el sobreajuste.
+
+6) Métricas con significado
+- Accuracy: porcentaje total de aciertos. Útil, pero engañoso si hay desequilibrio de clases.
+- Precision (ataque): de lo que marcamos como ataque, ¿qué proporción era ataque de verdad? Evita falsas alarmas.
+- Recall (ataque): de todos los ataques reales, ¿cuántos detectamos? Evita pasar ataques por alto.
+- F1: combina precision y recall en un solo número (media armónica). Bueno para comparar modelos cuando hay clases desbalanceadas.
+- ROC-AUC: mide la calidad de la separación entre clases considerando distintos umbrales.
+
+7) Visualizaciones clave (Plotly)
+- Conteo de tipos de ataque: barras para ver cuáles son más comunes.
+- Balance de clases: pastel o barras para ver normal vs ataque.
+- Distribuciones numéricas (histogramas): entender rangos y valores atípicos.
+- Diagramas de caja (boxplots): comparar “intensidad” de ciertas variables entre normal y ataque.
+- Dispersión (scatter): relaciones entre pares de variables (ej. duración vs bytes) coloreado por etiqueta.
+- Importancias de características: barras que muestran qué variables pesan más en modelos tipo bosque.
+- Curvas ROC/PR: rendimiento por modelo.
+
+8) ¿Qué entregamos y dónde está todo?
+- Un notebook listo para ejecutar: CiberTelepatia/notebooks/IDS_Analysis_and_Models.ipynb
+- Un script de consola: CiberTelepatia/run_ids_ml.py
+- Requisitos: CiberTelepatia/requirements.txt
+- Carpeta de salidas: CiberTelepatia/outputs/
+- Este documento: CiberTelepatia/Analisis_y_Modelado_ML.txt
+
+9) Cómo repetir el experimento en tu computador
+1. Instalar dependencias:
+   pip install -r CiberTelepatia/requirements.txt
+2. Abrir el notebook:
+   jupyter notebook
+   (y ejecutar las celdas)
+   
+   o por consola:
+   python CiberTelepatia/run_ids_ml.py
+
+10) Interpretar resultados
+- Ordenamos los modelos por F1 (y luego accuracy). Cuanto más alto, mejor balance entre detectar ataques y evitar falsas alarmas.
+- Revisa también la matriz de confusión para ver si un modelo “confunde” ataques como normales (falsos negativos) o normales como ataques (falsos positivos).
+
+11) Siguientes pasos (si tienes tiempo extra)
+- Ajuste fino (tuning) de hiperparámetros con GridSearchCV/RandomizedSearchCV.
+- Validación cruzada estratificada para ver estabilidad del modelo.
+- Curvas de calibración para estimar probabilidades mejor calibradas.
+- Ensambles más avanzados y selección automática de variables.
+
+Conclusión
+Has obtenido un pipeline completo y visual para Detección de Intrusiones con 10+ modelos y 3 ensambles, con guías accesibles para público no técnico. Esto supera ampliamente una actividad opcional básica y queda preparado para extensiones futuras.

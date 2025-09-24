@@ -1,0 +1,91 @@
+### Explicación Detallada del Entorno de Desarrollo y Proyectos
+
+Hola Jose, aquí tienes un resumen actualizado de todo lo que hemos configurado y desarrollado en tu carpeta `UNIVERSIDAD/Telematica`.
+
+## 1. Visión General
+
+El objetivo de esta carpeta es centralizar tus proyectos de la materia "Internet: Arquitectura y Protocolos", permitiéndote tener un entorno de desarrollo local completo para simular redes, probar aplicaciones cliente-servidor y configurar servicios web.
+
+Actualmente, la carpeta contiene:
+
+- **`telemetria_robot`**: El proyecto correspondiente a la **Entrega 1**, un sistema cliente-servidor para un robot de telemetría.
+- **`sockets` y `http`**: Proyectos de prácticas anteriores para experimentar con sockets y arquitecturas web.
+- **Archivos de configuración**: Ficheros como `PlugAndAd.com.conf` que simulan un entorno de producción para tus aplicaciones web.
+
+---
+
+## 2. Proyecto: Robot de Telemetría (Entrega 1)
+
+Este proyecto, ubicado en la carpeta `telemetria_robot`, implementa un sistema cliente-servidor basado en sockets para controlar un robot de telemetría, cumpliendo con los requisitos de la "Entrega 1".
+
+#### Archivos Creados:
+
+- **`README.md`**: Documentación detallada del protocolo de comunicación diseñado (comandos, respuestas, formato de mensajes).
+- **`server.c`**: El código fuente del **servidor** escrito en C. Es multihilo, capaz de gestionar múltiples clientes simultáneamente y enviar datos de telemetría periódicamente.
+- **`Makefile`**: Archivo para compilar fácilmente el servidor en C.
+- **`client_cli.py`**: Un **cliente** de línea de comandos escrito en Python para interactuar con el servidor.
+- **`client_gui.py`**: Un **cliente** con interfaz gráfica (usando Tkinter) escrito en Python, que ofrece una forma más visual de interactuar con el robot.
+
+#### Instrucciones de Ejecución:
+
+Para poner en marcha el sistema, necesitarás dos terminales.
+
+**Terminal 1: Ejecutar el Servidor**
+
+1.  **Navega a la carpeta del proyecto:**
+    ```bash
+    cd /home/666/UNIVERSIDAD/Telematica/telemetria_robot
+    ```
+2.  **Compila el servidor:**
+    ```bash
+    make
+    ```
+3.  **Ejecuta el servidor**, especificando un puerto y un archivo de log:
+    ```bash
+    ./server 8080 logs.txt
+    ```
+    El servidor se quedará escuchando peticiones en el puerto `8080`.
+
+**Terminal 2: Ejecutar los Clientes**
+
+Puedes usar cualquiera de los dos clientes (o ambos al mismo tiempo).
+
+1.  **Navega a la carpeta del proyecto:**
+    ```bash
+    cd /home/666/UNIVERSIDAD/Telematica/telemetria_robot
+    ```
+
+2.  **Para el cliente de línea de comandos:**
+    ```bash
+    python3 client_cli.py 127.0.0.1 8080
+    ```
+    Una vez conectado, puedes escribir comandos como `LOGIN USER -` o `LOGIN ADMIN mysecretpassword`.
+
+3.  **Para el cliente con interfaz gráfica:**
+    ```bash
+    python3 client_gui.py
+    ```
+    La aplicación se abrirá en una ventana. Usa los campos y botones para conectarte, autenticarte y enviar comandos.
+
+---
+
+## 3. Actividad Adicional: Configuración de Dominio Local (PlugAndAd)
+
+Esto se refiere a tu trabajo anterior para poder probar tu aplicación `PlugAndAd.com` como si estuviera en un dominio real, utilizando un servidor web local (Apache) y una simulación de DNS.
+
+#### Descripción:
+
+El archivo `PlugAndAd.com.conf` es una configuración de **Virtual Host** para el servidor web Apache. Su función es:
+
+1.  Hacer que el servidor Apache "escuche" peticiones para el dominio `PlugAndAd.com`.
+2.  Redirigir todo el tráfico del puerto 80 (HTTP) al puerto 443 (HTTPS) para que la comunicación sea segura.
+3.  Actuar como un **proxy inverso**: cuando recibe una petición para `PlugAndAd.com`, en lugar de servir un archivo, reenvía esa petición a tu aplicación de Django que se está ejecutando en `localhost:5000`.
+
+Combinado con la simulación de DNS que configuraste en el proyecto `sockets/dns_test`, tu ordenador "cree" que `PlugAndAd.com` apunta a tu propia máquina (`127.0.0.1`), permitiéndote desarrollar y probar en un entorno muy realista.
+
+#### Archivos Relevantes:
+
+- **`/home/666/UNIVERSIDAD/Telematica/PlugAndAd.com.conf`**: Archivo de configuración de Apache.
+- **`/home/666/UNIVERSIDAD/Telematica/sockets/dns_test/`**: Carpeta con la simulación del servidor DNS.
+
+Espero que esta explicación detallada te sea de gran ayuda. ¡Hemos completado la Entrega 1 y documentado todo el proceso!

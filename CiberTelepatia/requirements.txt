@@ -1,0 +1,10 @@
+pandas
+numpy
+scikit-learn
+plotly
+jupyter
+imbalanced-learn
+ipywidgets
+kaleido
+lightgbm
+catboost
