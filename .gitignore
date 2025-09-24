@@ -19,3 +19,9 @@ Thumbs.db
 .pytest_cache/
 .mypy_cache/
 
+# Project artifacts (not to version)
+CiberTelepatia/catboost_info/
+CiberTelepatia/outputs/
+congestion_simulation/*.png
+congestion_simulation/*.pdf
+**/*.log
